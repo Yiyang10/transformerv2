@@ -4,7 +4,7 @@ from dataset import SlidingWindowDataset
 from model import TransformerModel  
 from model import LSTMModel
 from train import train_model
-import pickle
+import argparse, pickle
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader, Subset
 import numpy as np
@@ -99,7 +99,7 @@ def main():
             dropout=0.1
         ).to(device)
     else:
-        from models import LSTMModel
+        from model import LSTMModel
         model = LSTMModel(input_dim, hidden_dim=64,
                           num_layers=2, dropout=0.1).to(device)
 
