@@ -6,7 +6,8 @@ from dataset import SlidingWindowDataset
 from test import evaluate_model
 from torch.utils.data import DataLoader
 import os
-
+import wandb
+wandb.init(mode="disabled") 
 def run_test(test_pickle, model_path, output_csv, model_type="transformer"):
     with open(test_pickle, "rb") as f:
         test_df = pickle.load(f)
