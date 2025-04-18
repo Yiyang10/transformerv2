@@ -63,80 +63,65 @@ def get_data_loaders_by_segment(
     return train_loader, test_loader
 
 def main():
-    # ========== 超参数设置 ==========
-    #pickle_file = "/Users/john/Desktop/data/pickle/combined.pickle"  # 你的大表 pickle 文件
-    train_pickle_file = "/Users/john/Desktop/data/pickle/combined.pickle"
-    test_pickle_file = "/Users/john/Desktop/data/pickle/3GC_test.pickle"
-    wandb.init(
-    project="your_project_name",  # 替换为你的项目名
-    name="transformer-3GC-lowlr",       # 当前 run 的名字
-    config={
-        "sequence_length": 64,
-        "batch_size": 32,
-        "input_dim": 35,
-        "hidden_dim": 64,
-        "num_layers": 2,
-        "dropout": 0.1,
-        "d_model": 64,
-        "nhead": 4,
-        "dim_feedforward": 128,
-        "learning_rate": 5e-4,
-        "num_epochs": 12,
-        "model": "Transformer"
-    }
-    )
-    config = wandb.config
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--train_pickle", required=True,
+                        help="训练集 DataFrame pickle 路径")
+    parser.add_argument("--test_pickle",  required=True,
+                        help="测试集  DataFrame pickle 路径")
+    parser.add_argument("--seq_len",      default=64,  type=int)
+    parser.add_argument("--batch_size",   default=32,  type=int)
+    parser.add_argument("--epochs",       default=12,  type=int)
+    parser.add_argument("--lr",           default=5e-4, type=float)
+    parser.add_argument("--model",        choices=["transformer", "lstm"],
+                        default="transformer")
+    parser.add_argument("--out_csv",      default="final_test.csv")
+    args = parser.parse_args()
 
-    sequence_length = config.sequence_length
-    batch_size = config.batch_size
-    input_dim = config.input_dim
-    hidden_dim = config.hidden_dim
-    num_layers = config.num_layers
-    dropout = config.dropout
-    d_model = config.d_model
-    nhead = config.nhead
-    dim_feedforward = config.dim_feedforward
-    learning_rate = config.learning_rate
-    num_epochs = config.num_epochs
+    # —— W&B
+    wandb.init(project="forceboard_anomaly",
+               name=f"{args.model}-run", config=vars(args))
 
-    # 设备配置
+    # —— device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # ========== 数据加载 ========== 
-    # train_loader, test_loader = get_data_loaders_by_segment(
-    #     pickle_path=pickle_file,
-    #     sequence_length=sequence_length,
-    #     batch_size=batch_size
-    # )
+    # —— DataLoaders
     train_loader, test_loader = get_data_loaders_by_segment(
-    train_pickle_path=train_pickle_file,
-    test_pickle_path=test_pickle_file,
-    sequence_length=sequence_length,
-    batch_size=batch_size
-    )
+        args.train_pickle, args.test_pickle,
+        seq_len=args.seq_len, batch_size=args.batch_size)
 
-    # ========== 选择并初始化模型 ========== 
-    # 例：使用 LSTMModel (batch_size, seq_len, input_dim) -> (batch_size, seq_len, 1)
-    #model = LSTMModel(input_dim, hidden_dim, num_layers, dropout).to(device)
+    # —— Model
+    input_dim = 35
+    if args.model == "transformer":
+        model = TransformerModel(
+            input_dim, d_model=64, nhead=4,
+            num_layers=2, dim_feedforward=128,
+            dropout=0.1
+        ).to(device)
+    else:
+        from models import LSTMModel
+        model = LSTMModel(input_dim, hidden_dim=64,
+                          num_layers=2, dropout=0.1).to(device)
 
-    # 或者：使用 TransformerModel
-    model = TransformerModel(input_dim, d_model, nhead, num_layers, dim_feedforward, dropout).to(device)
     wandb.watch(model, log="all", log_freq=100)
-    # ========== 定义损失函数和优化器 ========== 
-    # 由于逐帧二分类 (0/1)，并且模型输出是 logits(未过 sigmoid)，可用 BCEWithLogitsLoss
-    criterion = nn.BCEWithLogitsLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    train_model(model, train_loader, test_loader, criterion, optimizer, device, num_epochs)
-    wandb.finish()
-    # 使用pos_weights
-    # pos_weight_value = torch.tensor([9.0], device=device)  # 设为9.0作初始尝试，也可以调大/调小
-    # criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight_value)
 
-    # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    # # 初始超参可设 alpha=1.0, gamma=2.0 使用focal loss
-    # criterion = FocalLoss(alpha=2.0, gamma=2.0, reduction='mean')
-    # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    # train_model(model, train_loader, test_loader, criterion, optimizer, device, num_epochs)
+    # —— Loss & Optimizer
+    criterion = nn.BCEWithLogitsLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+
+    # —— Train
+    model = train_model(model, train_loader, test_loader,
+                        criterion, optimizer, device,
+                        num_epochs=args.epochs,
+                        threshold=0.5,
+                        save_best=True)
+
+    # —— Final full‑test
+    evaluate_model(model, test_loader, device,
+                   threshold=0.5,
+                   save_csv_path=args.out_csv,
+                   epoch=args.epochs)
+
+    wandb.finish()
 
 if __name__ == "__main__":
     main()
