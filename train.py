@@ -50,4 +50,6 @@ def train_model(model, train_loader, test_loader,
     if save_best and best_state is not None:
         model.load_state_dict(best_state)
         print(f"Loaded best model (F1={best_f1:.4f})")
+        torch.save(model.state_dict(), "best_model.pt")
+        print("Best model weights saved to /content/best_model.pt")
     return model
