@@ -10,6 +10,7 @@ from torch.utils.data import Dataset, DataLoader, Subset
 import numpy as np
 from focal_loss import FocalLoss
 import wandb
+from test import evaluate_model
 
 # def get_data_loaders_by_segment(
 #     pickle_path, 
