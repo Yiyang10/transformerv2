@@ -69,7 +69,7 @@ def main():
                         help="训练集 DataFrame pickle 路径")
     parser.add_argument("--test_pickle",  required=True,
                         help="测试集  DataFrame pickle 路径")
-    parser.add_argument("--seq_len",      default=64,  type=int)
+    parser.add_argument("--seq_length",      default=64,  type=int)
     parser.add_argument("--batch_size",   default=32,  type=int)
     parser.add_argument("--epochs",       default=12,  type=int)
     parser.add_argument("--lr",           default=5e-4, type=float)
